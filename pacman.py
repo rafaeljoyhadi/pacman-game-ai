@@ -1,6 +1,11 @@
 # Notes :
 # Red = UCS, Orange = DFS, Pink = A*, Gray = Dijkstra
-
+# 1 = UCS, 2 = Dijkstra, 3 = A*, 4 = DFS, 5 = All
+# Press 1, 2, 3, 4, 5 to spawn ghosts
+# Press ~ to toggle ghost paths
+# Press SPACE to restart the game
+# Press W, A, S, D to move Pacman
+# Press ESC to exit the game
 
 import pygame
 import sys
@@ -11,7 +16,7 @@ pygame.init()
 
 WIDTH, HEIGHT = 600, 400
 CELL_SIZE = 20
-FPS = 4
+FPS = 4 # Change for game speed
 
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255) # Pellets
@@ -33,9 +38,9 @@ maze = [
     "#.####.#####.##.#####.####.#",
     "#.#  #.#   #.##.#   #.#  #.#",
     "#.####.#####.##.#####.####.#",
-    "#P.........................#",
+    "#..........................#",
     "#.####.##.########.##.####.#",
-    "#......##....##....##....P.#",
+    "#......##....##....##......#",
     "######.##### ## #####.######",
     "     #.#            #.#     ",
     "######.# ########## #.######",
@@ -43,11 +48,10 @@ maze = [
     "#.####.#####.##.#####.####.#",
     "#.#  #.#   #.##.#   #.#  #.#",
     "#.####.#####.##.#####.####.#",
-    "#............P.............#",
+    "#..........................#",
     "############################",
 ]
 
-#Labyrinth to grid
 maze_grid = []
 pellets = []
 fruits = []
@@ -95,38 +99,6 @@ def move(position, direction):
         return True 
     return False  
 
-def ghost_dfs(ghost_pos, pacman_pos):
-    stack = [(tuple(ghost_pos), [])] 
-    visited = set()
-
-    while stack:
-        current_pos, path = stack.pop()
-
-        if current_pos in visited:
-            continue
-
-        visited.add(current_pos)
-
-        if current_pos == tuple(pacman_pos):
-            if path:
-                next_pos = path[0]
-                ghost_pos[0], ghost_pos[1] = next_pos
-            return
-
-        x, y = current_pos
-        neighbors = [
-            (x - 1, y),  
-            (x + 1, y),  
-            (x, y - 1),  
-            (x, y + 1),  
-        ]
-
-        neighbors.sort(key=lambda n: abs(n[0] - pacman_pos[0]) + abs(n[1] - pacman_pos[1]))
-
-        for nx, ny in neighbors:
-            if 0 <= ny < len(maze_grid) and 0 <= nx < len(maze_grid[0]) and maze_grid[ny][nx] == 0:
-                stack.append(((nx, ny), path + [(nx, ny)]))
-
 def get_neighbors(pos):
     neighbors = []
     directions = [(-1, 0), (1, 0), (0, -1), (0, 1)] 
@@ -137,17 +109,14 @@ def get_neighbors(pos):
                 neighbors.append((nx, ny))
     return neighbors
 
-def ghost_ucs(ghost1_pos, pacman_pos):
-    def get_neighbors(pos):
-        neighbors = []
-        directions = [(0, -1), (0, 1), (-1, 0), (1, 0)] 
-        for dx, dy in directions:
-            nx, ny = pos[0] + dx, pos[1] + dy
-            if 0 <= ny < len(maze_grid) and 0 <= nx < len(maze_grid[0]):
-                if maze_grid[ny][nx] == 0:  
-                    neighbors.append((nx, ny))
-        return neighbors
+ghost_paths = {
+    "UCS": [],
+    "DFS": [],
+    "A*": [],
+    "Dijkstra": []
+}
 
+def ghost_ucs(ghost1_pos, pacman_pos):
     priority_queue = []
     heapq.heappush(priority_queue, (0, tuple(ghost1_pos), []))
     visited = set()
@@ -161,28 +130,46 @@ def ghost_ucs(ghost1_pos, pacman_pos):
 
         if current_pos == tuple(pacman_pos):
             if path:
+                ghost_paths["UCS"] = path
                 ghost1_pos[0], ghost1_pos[1] = path[0]  
             return
 
         for neighbor in get_neighbors(current_pos):
             if neighbor not in visited:
-                new_cost = cost + 1 
+                new_cost = cost + 1
                 heapq.heappush(priority_queue, (new_cost, neighbor, path + [neighbor]))
 
-    return
+# Update DFS Ghost
+def ghost_dfs(ghost_pos, pacman_pos):
+    stack = [(tuple(ghost_pos), [])]
+    visited = set()
 
-# Disktra
+    while stack:
+        current_pos, path = stack.pop()
+
+        if current_pos in visited:
+            continue
+        visited.add(current_pos)
+
+        if current_pos == tuple(pacman_pos):
+            if path:
+                ghost_paths["DFS"] = path  # Record the path
+                ghost_pos[0], ghost_pos[1] = path[0]
+            return
+
+        x, y = current_pos
+        neighbors = [
+            (x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1),
+        ]
+
+        neighbors.sort(key=lambda n: abs(n[0] - pacman_pos[0]) + abs(n[1] - pacman_pos[1]))
+
+        for nx, ny in neighbors:
+            if 0 <= ny < len(maze_grid) and 0 <= nx < len(maze_grid[0]) and maze_grid[ny][nx] == 0:
+                stack.append(((nx, ny), path + [(nx, ny)]))
+
+# Update Dijkstra Ghost
 def ghost_dijkstra(ghost_pos, pacman_pos):
-    def get_neighbors(pos):
-        neighbors = []
-        directions = [(0, -1), (0, 1), (-1, 0), (1, 0)] 
-        for dx, dy in directions:
-            nx, ny = pos[0] + dx, pos[1] + dy
-            if 0 <= ny < len(maze_grid) and 0 <= nx < len(maze_grid[0]):
-                if maze_grid[ny][nx] == 0:  
-                    neighbors.append((nx, ny))
-        return neighbors
-
     priority_queue = []
     heapq.heappush(priority_queue, (0, tuple(ghost_pos), []))
     visited = set()
@@ -197,19 +184,18 @@ def ghost_dijkstra(ghost_pos, pacman_pos):
 
         if current_pos == tuple(pacman_pos):
             if path:
-                ghost_pos[0], ghost_pos[1] = path[0]  
+                ghost_paths["Dijkstra"] = path  # Record the path
+                ghost_pos[0], ghost_pos[1] = path[0]
             return
 
         for neighbor in get_neighbors(current_pos):
             if neighbor not in visited:
-                new_cost = cost + 1 
+                new_cost = cost + 1
                 if neighbor not in distances or new_cost < distances[neighbor]:
                     distances[neighbor] = new_cost
                     heapq.heappush(priority_queue, (new_cost, neighbor, path + [neighbor]))
 
-    return
-
-# A*
+# Update A* Ghost
 def ghost_a_star(ghost_pos, pacman_pos):
     def heuristic(pos):
         return abs(pos[0] - pacman_pos[0]) + abs(pos[1] - pacman_pos[1])
@@ -227,15 +213,25 @@ def ghost_a_star(ghost_pos, pacman_pos):
 
         if current_pos == tuple(pacman_pos):
             if path:
-                ghost_pos[0], ghost_pos[1] = path[0]  
+                ghost_paths["A*"] = path  # Record the path
+                ghost_pos[0], ghost_pos[1] = path[0]
             return
 
         for neighbor in get_neighbors(current_pos):
             if neighbor not in visited:
-                new_cost = cost + 1 
+                new_cost = cost + 1
                 heapq.heappush(priority_queue, (new_cost + heuristic(neighbor), neighbor, path + [neighbor]))
 
-    return
+# Add this function to draw ghost paths
+def draw_ghost_paths():
+        if show_paths:  # Only draw paths if toggled on
+            for color, path in zip([RED, ORANGE, PINK, GRAY], ghost_paths.values()):
+                for position in path:
+                    pygame.draw.rect(
+                        screen, 
+                        color, 
+                        (position[0] * CELL_SIZE + CELL_SIZE // 4, position[1] * CELL_SIZE + CELL_SIZE // 4, CELL_SIZE // 2, CELL_SIZE // 2)
+                    )
 
 # Initialize pacman and ghost position
 pacman_pos = [14, 9] 
@@ -248,6 +244,40 @@ pacman_direction = None
 last_valid_direction = None
 
 score = 0
+
+def spawn_ghosts(option):
+    global ghost1_pos, ghost2_pos, ghost3_pos, ghost4_pos, ghost_paths
+    ghost_paths = {
+        "UCS": [],
+        "DFS": [],
+        "A*": [],
+        "Dijkstra": []
+    }
+    if option == 1:  # Only UCS Ghost
+        ghost1_pos = [1, 1]
+        ghost2_pos = None
+        ghost3_pos = None
+        ghost4_pos = None
+    elif option == 2:  # Only Dijkstra Ghost
+        ghost1_pos = None
+        ghost2_pos = None
+        ghost3_pos = None
+        ghost4_pos = [26, 15]
+    elif option == 3:  # Only A* Ghost
+        ghost1_pos = None
+        ghost2_pos = None
+        ghost3_pos = [26, 1]
+        ghost4_pos = None
+    elif option == 4:  # Only DFS Ghost
+        ghost1_pos = None
+        ghost2_pos = [1, 15]
+        ghost3_pos = None
+        ghost4_pos = None
+    elif option == 5:  # All Ghosts
+        ghost1_pos = [1, 1]
+        ghost2_pos = [1, 15]
+        ghost3_pos = [26, 1]
+        ghost4_pos = [26, 15]
 
 def reset_game():
     global pacman_pos, ghost1_pos, ghost2_pos, ghost3_pos, ghost4_pos, pacman_direction, last_valid_direction, game_over, pellets, fruits, score
@@ -270,6 +300,7 @@ running = True
 game_over = False
 game_won = False
 LOGIC_INTERVAL = 100
+show_paths = True
 last_update_time = pygame.time.get_ticks()
 
 while running:
@@ -279,20 +310,36 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        if (game_over or game_won) and event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_1:
                 reset_game()
-                game_won = False
-
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_w:
-                pacman_direction = 'UP'
-            elif event.key == pygame.K_s:
-                pacman_direction = 'DOWN'
-            elif event.key == pygame.K_a:
-                pacman_direction = 'LEFT'
-            elif event.key == pygame.K_d:
-                pacman_direction = 'RIGHT'
+                spawn_ghosts(1)
+            elif event.key == pygame.K_2:
+                reset_game()
+                spawn_ghosts(2)
+            elif event.key == pygame.K_3:
+                reset_game()
+                spawn_ghosts(3)
+            elif event.key == pygame.K_4:
+                reset_game()
+                spawn_ghosts(4)
+            elif event.key == pygame.K_5:
+                reset_game()
+                spawn_ghosts(5)
+            elif event.key == pygame.K_BACKQUOTE:  # Tilde key toggle
+                show_paths = not show_paths
+            elif (game_over or game_won) and event.key == pygame.K_SPACE:
+                reset_game()
+                spawn_ghosts(5) 
+            else:
+                if event.key == pygame.K_w:
+                    pacman_direction = 'UP'
+                elif event.key == pygame.K_s:
+                    pacman_direction = 'DOWN'
+                elif event.key == pygame.K_a:
+                    pacman_direction = 'LEFT'
+                elif event.key == pygame.K_d:
+                    pacman_direction = 'RIGHT'
 
     # Update game logic at fixed intervals
     if not game_over and not game_won and current_time - last_update_time >= LOGIC_INTERVAL:
@@ -315,11 +362,16 @@ while running:
         if not pellets:
             game_won = True
 
-        # Update ghost positions
-        ghost_ucs(ghost1_pos, pacman_pos)
-        ghost_dfs(ghost2_pos, pacman_pos)
-        ghost_a_star(ghost3_pos, pacman_pos)
-        ghost_dijkstra(ghost4_pos, pacman_pos)
+        # Update ghost positions (conditionally move only active ghosts)
+        if ghost1_pos:
+            ghost_ucs(ghost1_pos, pacman_pos)
+        if ghost2_pos:
+            ghost_dfs(ghost2_pos, pacman_pos)
+        if ghost3_pos:
+            ghost_a_star(ghost3_pos, pacman_pos)
+        if ghost4_pos:
+            ghost_dijkstra(ghost4_pos, pacman_pos)
+
 
         # Check for collisions with ghosts
         if pacman_pos in [ghost1_pos, ghost2_pos, ghost3_pos, ghost4_pos]:
@@ -330,13 +382,20 @@ while running:
     # Render everything
     draw_maze()
     draw_pellets_and_fruits()
-
+    draw_ghost_paths()
+    
     # Draw Pacman and ghosts
     pygame.draw.circle(screen, YELLOW, (pacman_pos[0] * CELL_SIZE + CELL_SIZE // 2, pacman_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
-    pygame.draw.circle(screen, RED, (ghost1_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost1_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
-    pygame.draw.circle(screen, ORANGE, (ghost2_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost2_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
-    pygame.draw.circle(screen, PINK, (ghost3_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost3_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
-    pygame.draw.circle(screen, GRAY, (ghost4_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost4_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
+    
+    # Draw Ghosts (conditionally)
+    if ghost1_pos:
+        pygame.draw.circle(screen, RED, (ghost1_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost1_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
+    if ghost2_pos:
+        pygame.draw.circle(screen, ORANGE, (ghost2_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost2_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
+    if ghost3_pos:
+        pygame.draw.circle(screen, PINK, (ghost3_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost3_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
+    if ghost4_pos:
+        pygame.draw.circle(screen, GRAY, (ghost4_pos[0] * CELL_SIZE + CELL_SIZE // 2, ghost4_pos[1] * CELL_SIZE + CELL_SIZE // 2), CELL_SIZE // 2)
 
     # Display score
     font = pygame.font.Font(None, 36)
